@@ -38,17 +38,16 @@ int C2048::addNewValue()
         count++;
         x = rand() % size;
         y = rand() % size;
-        if (count > 1000)
-            return 0;
-        //if (getTickCount() > maxCount)
-        //{
-        //    return 0;       // enough tries, failed to find empty spot
-        //}
+        //if (count > 1000)
+        //    return 0;
+        if (getTickCount() > maxCount)
+        {
+            return 0;       // enough tries, failed to find empty spot
+        }
     } while (v[y][x] != defaultValue);
     if (v[y][x] == defaultValue)
     {
         v[y][x] = generateValue(1, 2);
-        //std::cout << "col: " << x << " row: " << y << "\n";
     }
 
     return 1;
