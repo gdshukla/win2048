@@ -8,7 +8,8 @@
 static bool running = true;
 
 static Render_State render_state;
-
+const UINT TOP_GAP = 100;
+const UINT SIDE_GAP = 200;
 
 LRESULT CALLBACK window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 {
@@ -30,18 +31,6 @@ LRESULT CALLBACK window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
         render_state.width = rect.right - rect.left;
         render_state.height = rect.bottom - rect.top;
 
-        int size = render_state.width * render_state.height * sizeof(unsigned int);
-
-        //if (render_state.memory) VirtualFree(render_state.memory, 0, MEM_RELEASE);
-        //render_state.memory = VirtualAlloc(0, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-
-        //render_state.bitmap_info.bmiHeader.biSize = sizeof(render_state.bitmap_info.bmiHeader);
-        //render_state.bitmap_info.bmiHeader.biWidth = render_state.width;
-        //render_state.bitmap_info.bmiHeader.biHeight = render_state.height;
-        //render_state.bitmap_info.bmiHeader.biPlanes = 1;
-        //render_state.bitmap_info.bmiHeader.biBitCount = 32;
-        //render_state.bitmap_info.bmiHeader.biCompression = BI_RGB;
-
     } 
     break;
 
@@ -55,7 +44,6 @@ LRESULT CALLBACK window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 class block
 {
     int width, height, x, y, ID, value;
-    //int modified = 0;
     Render_State *rs;
 public:
     block() :width(0), height(0), x(0), y(0), ID(0), value(0), rs(nullptr) {}
@@ -73,24 +61,13 @@ public:
     }
     void draw(HDC hdc)
     {
-        //if (value != 0)
-        {
-            RECT rec;
-            SetRect(&rec, x, y, x + width, y + height);
-            HBRUSH hBrush = CreateSolidBrush(getBGColor(value));
-            FillRect(hdc, &rec, hBrush);
-            DeleteObject(hBrush);
-
-            //COLORREF color = getBGColor(value);    // RGB(204, 196, 136);    //
-            //draw_rect_in_pixels(x, y, x + width, y + height, color, rs);
-
-        }
-        //drawText();
+        RECT rec;
+        SetRect(&rec, x, y, x + width, y + height);
+        HBRUSH hBrush = CreateSolidBrush(getBGColor(value));
+        FillRect(hdc, &rec, hBrush);
+        DeleteObject(hBrush);
     }
-    //void draw(COLORREF color)
-    //{
-    //    draw_rect_in_pixels(x, y, x + width, y + height, color, rs);
-    //}
+
     void setValue(int val)
     {
         value = val;
@@ -101,40 +78,31 @@ public:
         switch (value)
         {
         case 0:
-            color = RGB(204, 196, 136);
-            break;
+            return RGB(204, 196, 136);
         case 2:
         case 4:
-            color = RGB(170, 170, 170);
-            break;
+            return RGB(170, 170, 170);
         case 8:
         case 16:
-            color = RGB(170, 170, 70);
-            break;
+            return RGB(170, 170, 70);
         case 32:
         case 64:
-            color = RGB(70, 170, 70);
-            break;
+            return RGB(70, 170, 70);
         case 128:
         case 256:
-            color = RGB(70, 170, 170);
-            break;
+            return RGB(70, 170, 170);
         case 512:
         case 1024:
-            color = RGB(70, 70, 170);
-            break;
+            return RGB(70, 70, 170);
         case 1024 * 2:
         case 1024 * 4:
-            color = RGB(170, 70, 170);
-            break;
+            return RGB(170, 70, 170);
         case 1024 * 8:
         case 1024 * 16:
-            color = RGB(170, 70, 70);
-            break;
+            return RGB(170, 70, 70);
         case 1024 * 32:
         case 1024 * 64:
-            color = RGB(0, 0, 0);
-            break;
+            return RGB(0, 0, 0);
         }
         return color;
     }
@@ -144,30 +112,33 @@ public:
         switch (count)
         {
         case 1:
-            return 60;
-        case 2:
             return 50;
+        case 2:
+            return 45;
         case 3:
             return 40;
         case 4:
-            return 30;
+            return 35;
         case 5:
         default:
-            return 20;
+            return 30;
         }
     }
-    void drawText(HDC hdc, int val)
+
+    void drawText(int val, HDC hdc)
     {
         int fsize = getFontSize(value);
         HFONT hFont = CreateFont(fsize, 0, 0, 0, FW_BOLD, 0, 0, 0, 0, 0, 0, 2, 0, L"SYSTEM_FIXED_FONT");
         HFONT hTmp = (HFONT)SelectObject(hdc, hFont);
-        SetTextColor(hdc, RGB(0, 0, 0x88));
+        SetTextColor(hdc, RGB(0, 0, 0x48));
         SetBkMode(hdc, TRANSPARENT);
         RECT rec;
         SetRect(&rec, x, y, x+width, y+height);
+        
         wchar_t buffer[64];
         wsprintfW(buffer, L"%d", val);
         DrawText(hdc, buffer, lstrlenW(buffer), &rec, DT_SINGLELINE | DT_CENTER | DT_VCENTER);
+        
         DeleteObject(SelectObject(hdc, hTmp));
 
     }
@@ -175,7 +146,7 @@ public:
     {
         if (value != C2048::defaultValue)
         {
-            drawText(hdc, value);
+            drawText(value, hdc);
         }
     }
 };
@@ -185,16 +156,16 @@ std::vector<block> initBoard(int block_count, Render_State *render_state)
     std::vector<block> blocks;
     int border_size = 10;
     int border_size_total = border_size * (block_count + 1);
-    int block_width = (render_state->width - border_size_total) / block_count;
-    int block_height = (render_state->height - border_size_total) / block_count;
+    int block_width = (render_state->width - border_size_total - SIDE_GAP) / block_count;   // leave spave on sides
+    int block_height = (render_state->height - border_size_total - TOP_GAP) / block_count;  // space on top for score
 
     for (int i = 0; i < block_count; i++)
     {
         for (int j = 0; j < block_count; j++)
         {
             block b;
-            int bx = (j + 1)*border_size + j * block_width;
-            int by = (i + 1)*border_size + i * block_height;
+            int bx = (j + 1)*border_size + j * block_width + SIDE_GAP/2;
+            int by = (i + 1)*border_size + i * block_height + TOP_GAP;
             int ID = j * block_count + i;
             b.set(block_width, block_height, bx, by, ID, render_state);
             blocks.push_back(b);
@@ -208,50 +179,72 @@ void setBlockValues(std::vector<block> &blocks, C2048 &board, HDC hdc)
     {
         int value = board.getVal(i);
         blocks[i].setValue(value);
-        //if (value != 0)
-        //{
-        //    blocks[i].drawText(hdc);
-        //}
     }
 }
-
-void printText(std::vector<block> &blocks, C2048 &board, Render_State &rs, HDC hdc)
+void drawScore(int score, Render_State &rs, HDC hdc)
 {
-    //initBoard(8, &render_state);
+    int fsize = 40;
+    HFONT hFont = CreateFont(fsize, 0, 0, 0, FW_BOLD, 0, 0, 0, 0, 0, 0, 2, 0, L"SYSTEM_FIXED_FONT");
+    HFONT hTmp = (HFONT)SelectObject(hdc, hFont);
+    SetTextColor(hdc, RGB(0xff, 0xff, 0xff));
+    SetBkMode(hdc, TRANSPARENT);
+    RECT rec;
+    SetRect(&rec, 0, 0, rs.width, TOP_GAP);
+
+    wchar_t buffer[64];
+    wsprintfW(buffer, L"Score: %d", score);
+    DrawText(hdc, buffer, lstrlenW(buffer), &rec, DT_SINGLELINE | DT_CENTER | DT_VCENTER);
+
+    DeleteObject(SelectObject(hdc, hTmp));
+
+}
+
+void drawWarning(std::wstring text, Render_State &rs, HDC hdc)
+{
+    int fsize = 40;
+    HFONT hFont = CreateFont(fsize, 0, 0, 0, FW_BOLD, 0, 0, 0, 0, 0, 0, 2, 0, L"SYSTEM_FIXED_FONT");
+    HFONT hTmp = (HFONT)SelectObject(hdc, hFont);
+    SetTextColor(hdc, RGB(0xff, 0, 0));
+    SetBkMode(hdc, TRANSPARENT);
+    RECT rec;
+    SetRect(&rec, rs.width/2, 0, rs.width, TOP_GAP);
+
+    wchar_t buffer[64];
+    wsprintfW(buffer, L"%s", text.c_str());
+    DrawText(hdc, buffer, lstrlenW(buffer), &rec, DT_SINGLELINE | DT_CENTER | DT_VCENTER);
+
+    DeleteObject(SelectObject(hdc, hTmp));
+
+}
+
+void drawBlocks(std::vector<block> &blocks, C2048 &board, Render_State &rs, HDC hdc)
+{
+    // fill black background
+    RECT rec;
+    SetRect(&rec, 0, 0, rs.width, rs.height+TOP_GAP);
+    HBRUSH hBrush = CreateSolidBrush(RGB(0,0,0));
+    FillRect(hdc, &rec, hBrush);
+    DeleteObject(hBrush);
+
     if (board.addNewValue() == 0)
     {
+        drawWarning(L"FULL", render_state, hdc);
     }
+    // load board values into corresponding blocks
     setBlockValues(blocks, board, hdc);
+
+    // draw background tiles for all blocks
     for (auto &b : blocks)
     {
         b.draw(hdc);
     }
-    // Render
-    //StretchDIBits(hdc, 0, 0, rs.width, rs.height, 0, 0, rs.width, rs.height, rs.memory, &rs.bitmap_info, DIB_RGB_COLORS, SRCCOPY);
-    //static int index = 0;
+    // draw text on all blocks
     for (auto &b : blocks)
     {
         b.drawText(hdc);
     }
-    //for (size_t i = 0; i < blocks.size(); i++)
-    //{
-    //    int value = board.getVal(i);
-    //    if (value != board.defaultValue)
-    //    {
-    //        blocks[i].drawText(hdc);
-    //    }
-
-    //}
-    //for (auto &b : blocks)
-    //{
-    //    int value = board.getVal(index);
-    //    index++;
-    //    if (value != board.defaultValue)
-    //    {
-    //        b.drawText(hdc, value);
-    //    }
-    //    //b.draw();
-    //}
+    int score = board.getScore();
+    drawScore(score, rs, hdc);
 
 }
 
@@ -294,9 +287,10 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
     }
 
     const size_t size = 8;
-    C2048 board(size);
+    C2048 board(size);      // create size X size board
     if (board.addNewValue() == 0)
     {
+        drawWarning(L"FULL", render_state, hdc);
     }
     std::vector<block> blocks = initBoard(size, &render_state);
     for (auto &b : blocks)
@@ -304,9 +298,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
         b.draw(hdc);
     }
 
-    // Render
-    //StretchDIBits(hdc, 0, 0, render_state.width, render_state.height, 0, 0, render_state.width, render_state.height, render_state.memory, &render_state.bitmap_info, DIB_RGB_COLORS, SRCCOPY);
-    printText(blocks, board, render_state, hdc);
+    drawBlocks(blocks, board, render_state, hdc);
 
     while (running) {
         // Input
@@ -362,21 +354,11 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 
         }
 
-        // Simulate
-        //simulate_game(&input, delta_time, &render_state);
         if (button_pressed != -1)
         {
             button_pressed = -1;
-            printText(blocks, board, render_state, hdc);
+            drawBlocks(blocks, board, render_state, hdc);
         }
-        //Sleep(1000);
-        //for (int i = 0; i < 64; i++)
-        //{
-        //    blocks[i].drawText(hdc, 2);
-        //    blocks[i].draw();
-        //}
-
-
 
         LARGE_INTEGER frame_end_time;
         QueryPerformanceCounter(&frame_end_time);

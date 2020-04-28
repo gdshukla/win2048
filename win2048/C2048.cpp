@@ -21,7 +21,7 @@ C2048::C2048(size_t _size):size(_size), score(0)
 int C2048::generateValue(int min, int max)
 {
     int val = rand() % max;
-    val++;// = clamp(1, 2, val);
+    val++;
     return val * 2;
 }
 
@@ -127,13 +127,6 @@ int C2048::getVal(size_t index)
 
 int C2048::modify(int *first, int *second)
 {
-    //if (*first == defaultValue && *second != defaultValue)
-    //{
-    //    *first = *second;
-    //    *second = defaultValue;
-    //    return 0;
-    //}
-    //else 
     if (*first != defaultValue && *second != defaultValue && *first == *second)
     {
         *first += *second;
