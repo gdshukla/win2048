@@ -3,7 +3,7 @@
 #include "block.h"
 #include "C2048.h"
 
-void block::set(int w, int h, int _x, int _y, int id, Render_State *render_state)
+void block::set(int w, int h, int _x, int _y, int id, const Render_State *render_state)
 {
     width = w;
     height = h;
@@ -12,7 +12,7 @@ void block::set(int w, int h, int _x, int _y, int id, Render_State *render_state
     ID = id;
     rs = render_state;
 }
-void block::draw(HDC hdc)
+void block::draw(const HDC hdc) const
 {
     RECT rec;
     SetRect(&rec, x, y, x + width, y + height);
@@ -20,25 +20,25 @@ void block::draw(HDC hdc)
     FillRect(hdc, &rec, hBrush);
     DeleteObject(hBrush);
 
-    //SelectObject(hdc, GetStockObject(WHITE_BRUSH));
-    //COLORREF color = GetDCPenColor(hdc);
-    //SetDCPenColor(hdc, getColor(value));
-
-    //RoundRect(hdc, rec.left, rec.top, rec.right, rec.bottom, 20, 20);
-    //SetDCPenColor(hdc, color);
 }
-void block::drawRounded(HDC hdc)
+void block::drawRounded(const HDC hdc) const
 {
-    int radius = 10;
+    SelectObject(hdc, GetStockObject(WHITE_BRUSH));
+    COLORREF color = GetDCPenColor(hdc);
+    SetDCPenColor(hdc, getColor(value));
 
-    //PolyBezier(hdc)
+    RECT rec;
+    SetRect(&rec, x, y, x + width, y + height);
+
+    RoundRect(hdc, rec.left, rec.top, rec.right, rec.bottom, 20, 20);
+    SetDCPenColor(hdc, color);
 }
 
 void block::setValue(int val)
 {
     value = val;
 }
-COLORREF block::getColor(int value)
+COLORREF block::getColor(int value) const
 {
     COLORREF color = RGB(0, 0, 0);
     int col1 = 70;
@@ -74,7 +74,7 @@ COLORREF block::getColor(int value)
     }
     return color;
 }
-int block::getFontSize(int value)
+int block::getFontSize(int value) const
 {
     int count = C2048::getDigitCount(value);
     switch (count)
@@ -93,7 +93,7 @@ int block::getFontSize(int value)
     }
 }
 
-void block::drawText(int val, HDC hdc)
+void block::drawText(int val, const HDC hdc) const
 {
     int fsize = getFontSize(value);
     HFONT hFont = CreateFont(fsize, 0, 0, 0, FW_BOLD, 0, 0, 0, 0, 0, 0, 2, 0, L"SYSTEM_FIXED_FONT");
@@ -110,7 +110,7 @@ void block::drawText(int val, HDC hdc)
     DeleteObject(SelectObject(hdc, hTmp));
 
 }
-void block::drawText(HDC hdc)
+void block::drawText(const HDC hdc) const
 {
     if (value != C2048::defaultValue)
     {

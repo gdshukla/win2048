@@ -113,7 +113,7 @@ void C2048::print()
 
 }
 
-int C2048::getVal(size_t index)
+int C2048::getVal(size_t index) const 
 {
     if (index > size*size)
         return defaultValue;

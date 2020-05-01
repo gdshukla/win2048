@@ -27,7 +27,7 @@ public:
     void toUp();
     void toDown();
     unsigned long getScore() const;
-    int getVal(size_t index);
+    int getVal(size_t index) const;
 
     static int getDigitCount(int value);
 };

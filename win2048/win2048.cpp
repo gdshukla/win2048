@@ -11,6 +11,8 @@ static bool running = true;
 static Render_State render_state;
 const UINT TOP_GAP = 100;
 const UINT SIDE_GAP = 200;
+const UINT FONT_SIZE = 40;
+const UINT BORDER_SIZE = 4;
 
 LRESULT CALLBACK window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 {
@@ -42,29 +44,28 @@ LRESULT CALLBACK window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
     }
     return result;
 }
-std::vector<block> initBoard(int block_count, Render_State *render_state)
+std::vector<block> initBoard(const int block_count, const Render_State &rs)
 {
     std::vector<block> blocks;
-    int border_size = 6;
-    int border_size_total = border_size * (block_count + 1);
-    int block_width = (render_state->width - border_size_total - SIDE_GAP) / block_count;   // leave spave on sides
-    int block_height = (render_state->height - border_size_total - TOP_GAP) / block_count;  // space on top for score
+    int border_size_total = BORDER_SIZE * (block_count + 1);
+    int block_width = (rs.width - border_size_total - SIDE_GAP) / block_count;   // leave spave on sides
+    int block_height = (rs.height - border_size_total - TOP_GAP) / block_count;  // space on top for score
 
     for (int i = 0; i < block_count; i++)
     {
         for (int j = 0; j < block_count; j++)
         {
             block b;
-            int bx = (j + 1)*border_size + j * block_width + SIDE_GAP/2;
-            int by = (i + 1)*border_size + i * block_height + TOP_GAP;
+            int bx = (j + 1)*BORDER_SIZE + j * block_width + SIDE_GAP/2;
+            int by = (i + 1)*BORDER_SIZE + i * block_height + TOP_GAP;
             int ID = j * block_count + i;
-            b.set(block_width, block_height, bx, by, ID, render_state);
+            b.set(block_width, block_height, bx, by, ID, &rs);
             blocks.push_back(b);
         }
     }
     return blocks;
 }
-void setBlockValues(std::vector<block> &blocks, C2048 &board, HDC hdc)
+void setBlockValues(std::vector<block> &blocks, const C2048 &board, const HDC hdc)
 {
     for (size_t i = 0; i < blocks.size(); i++)
     {
@@ -72,9 +73,9 @@ void setBlockValues(std::vector<block> &blocks, C2048 &board, HDC hdc)
         blocks[i].setValue(value);
     }
 }
-void drawScore(int score, Render_State &rs, HDC hdc)
+void drawScore(int score, const Render_State &rs, const HDC hdc)
 {
-    int fsize = 40;
+    int fsize = FONT_SIZE;
     HFONT hFont = CreateFont(fsize, 0, 0, 0, FW_BOLD, 0, 0, 0, 0, 0, 0, 2, 0, L"SYSTEM_FIXED_FONT");
     HFONT hTmp = (HFONT)SelectObject(hdc, hFont);
     SetTextColor(hdc, RGB(0xff, 0xff, 0xff));
@@ -82,7 +83,7 @@ void drawScore(int score, Render_State &rs, HDC hdc)
     RECT rec;
     SetRect(&rec, 0, 0, rs.width, TOP_GAP);
 
-    wchar_t buffer[64];
+    wchar_t buffer[32];
     wsprintfW(buffer, L"Score: %d", score);
     DrawText(hdc, buffer, lstrlenW(buffer), &rec, DT_SINGLELINE | DT_CENTER | DT_VCENTER);
 
@@ -90,9 +91,9 @@ void drawScore(int score, Render_State &rs, HDC hdc)
 
 }
 
-void drawWarning(std::wstring text, Render_State &rs, HDC hdc)
+void drawWarning(const std::wstring text, const Render_State &rs, const HDC hdc)
 {
-    int fsize = 40;
+    int fsize = FONT_SIZE;
     HFONT hFont = CreateFont(fsize, 0, 0, 0, FW_BOLD, 0, 0, 0, 0, 0, 0, 2, 0, L"SYSTEM_FIXED_FONT");
     HFONT hTmp = (HFONT)SelectObject(hdc, hFont);
     SetTextColor(hdc, RGB(0xff, 0, 0));
@@ -108,7 +109,7 @@ void drawWarning(std::wstring text, Render_State &rs, HDC hdc)
 
 }
 
-void drawBlocks(std::vector<block> &blocks, C2048 &board, Render_State &rs, HDC hdc)
+void drawBlocks(std::vector<block> &blocks, C2048 &board, const Render_State &rs, const HDC hdc)
 {
     // fill black background
     RECT rec;
@@ -119,7 +120,7 @@ void drawBlocks(std::vector<block> &blocks, C2048 &board, Render_State &rs, HDC 
 
     if (board.addNewValue() == 0)
     {
-        drawWarning(L"FULL", render_state, hdc);
+        drawWarning(L"FULL", rs, hdc);
     }
     // load board values into corresponding blocks
     setBlockValues(blocks, board, hdc);
@@ -139,28 +140,10 @@ void drawBlocks(std::vector<block> &blocks, C2048 &board, Render_State &rs, HDC 
 
 }
 
-void test()
-{
-    const int count = 10;
-    int max = INT_MIN;      // assign minimuj possible value so that every possible int is above or equal to it
-    int number = 0;
-    for (int i = 0; i < count; i++)
-    {
-        std::cin >> number;
-        if (number > max)
-        {
-            max = number;   // current number if below previously stored number, save it as max
-        }
-    }
-    std::cout << max;
-}
-
 
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
-    test();
     ShowCursor(FALSE);
-
     // Create Window Class
     WNDCLASS window_class = {};
     window_class.style = CS_HREDRAW | CS_VREDRAW;
@@ -200,7 +183,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
     {
         drawWarning(L"FULL", render_state, hdc);
     }
-    std::vector<block> blocks = initBoard(size, &render_state);
+    std::vector<block> blocks = initBoard(size, render_state);
     for (auto &b : blocks)
     {
         b.draw(hdc);
