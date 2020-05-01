@@ -4,6 +4,7 @@
 #include <vector>
 #include "win2048.h"
 #include "C2048.h"
+#include "block.h"
 
 static bool running = true;
 
@@ -41,120 +42,10 @@ LRESULT CALLBACK window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
     }
     return result;
 }
-class block
-{
-    int width, height, x, y, ID, value;
-    Render_State *rs;
-public:
-    block() :width(0), height(0), x(0), y(0), ID(0), value(0), rs(nullptr) {}
-    block(Render_State *render_state) :width(0), height(0), x(0), y(0), ID(0), value(0), rs(render_state) {}
-    block(int w, int h, int _x, int _y, int id, Render_State *render_state) : 
-        width(w), height(h), x(_x), y(_y), ID(id), rs(render_state) {}
-    void set(int w, int h, int _x, int _y, int id, Render_State *render_state)
-    {
-        width = w;
-        height = h;
-        x = _x;
-        y = _y;
-        ID = id;
-        rs = render_state;
-    }
-    void draw(HDC hdc)
-    {
-        RECT rec;
-        SetRect(&rec, x, y, x + width, y + height);
-        HBRUSH hBrush = CreateSolidBrush(getBGColor(value));
-        FillRect(hdc, &rec, hBrush);
-        DeleteObject(hBrush);
-    }
-
-    void setValue(int val)
-    {
-        value = val;
-    }
-    COLORREF getBGColor(int value)
-    {
-        COLORREF color = RGB(0, 0, 0);
-        switch (value)
-        {
-        case 0:
-            return RGB(204, 196, 136);
-        case 2:
-        case 4:
-            return RGB(170, 170, 170);
-        case 8:
-        case 16:
-            return RGB(170, 170, 70);
-        case 32:
-        case 64:
-            return RGB(70, 170, 70);
-        case 128:
-        case 256:
-            return RGB(70, 170, 170);
-        case 512:
-        case 1024:
-            return RGB(70, 70, 170);
-        case 1024 * 2:
-        case 1024 * 4:
-            return RGB(170, 70, 170);
-        case 1024 * 8:
-        case 1024 * 16:
-            return RGB(170, 70, 70);
-        case 1024 * 32:
-        case 1024 * 64:
-            return RGB(0, 0, 0);
-        }
-        return color;
-    }
-    int getFontSize(int value)
-    {
-        int count = C2048::getDigitCount(value);
-        switch (count)
-        {
-        case 1:
-            return 50;
-        case 2:
-            return 45;
-        case 3:
-            return 40;
-        case 4:
-            return 35;
-        case 5:
-        default:
-            return 30;
-        }
-    }
-
-    void drawText(int val, HDC hdc)
-    {
-        int fsize = getFontSize(value);
-        HFONT hFont = CreateFont(fsize, 0, 0, 0, FW_BOLD, 0, 0, 0, 0, 0, 0, 2, 0, L"SYSTEM_FIXED_FONT");
-        HFONT hTmp = (HFONT)SelectObject(hdc, hFont);
-        SetTextColor(hdc, RGB(0, 0, 0x48));
-        SetBkMode(hdc, TRANSPARENT);
-        RECT rec;
-        SetRect(&rec, x, y, x+width, y+height);
-        
-        wchar_t buffer[64];
-        wsprintfW(buffer, L"%d", val);
-        DrawText(hdc, buffer, lstrlenW(buffer), &rec, DT_SINGLELINE | DT_CENTER | DT_VCENTER);
-        
-        DeleteObject(SelectObject(hdc, hTmp));
-
-    }
-    void drawText(HDC hdc)
-    {
-        if (value != C2048::defaultValue)
-        {
-            drawText(value, hdc);
-        }
-    }
-};
-
 std::vector<block> initBoard(int block_count, Render_State *render_state)
 {
     std::vector<block> blocks;
-    int border_size = 10;
+    int border_size = 6;
     int border_size_total = border_size * (block_count + 1);
     int block_width = (render_state->width - border_size_total - SIDE_GAP) / block_count;   // leave spave on sides
     int block_height = (render_state->height - border_size_total - TOP_GAP) / block_count;  // space on top for score
@@ -248,9 +139,26 @@ void drawBlocks(std::vector<block> &blocks, C2048 &board, Render_State &rs, HDC 
 
 }
 
+void test()
+{
+    const int count = 10;
+    int max = INT_MIN;      // assign minimuj possible value so that every possible int is above or equal to it
+    int number = 0;
+    for (int i = 0; i < count; i++)
+    {
+        std::cin >> number;
+        if (number > max)
+        {
+            max = number;   // current number if below previously stored number, save it as max
+        }
+    }
+    std::cout << max;
+}
+
+
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
-
+    test();
     ShowCursor(FALSE);
 
     // Create Window Class

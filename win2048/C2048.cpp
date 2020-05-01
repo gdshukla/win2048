@@ -115,7 +115,7 @@ void C2048::print()
 
 int C2048::getVal(size_t index)
 {
-    if (index > 64)
+    if (index > size*size)
         return defaultValue;
     size_t y = index / size;
     size_t x = index % size;
