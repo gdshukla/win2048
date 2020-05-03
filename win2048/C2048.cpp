@@ -25,7 +25,7 @@ int C2048::generateValue(int min, int max)
     return val * 2;
 }
 
-int C2048::addNewValue()
+bool C2048::addNewValue()
 {
     int val = rand() % 2;       // valid values are 2 & 4
     size_t x = 0;
@@ -162,8 +162,9 @@ void C2048::moveLeft()
     }
 
 }
-void C2048::toLeft()
+bool C2048::toLeft()
 {
+    bool status = false;
     moveLeft();
     for (size_t i = 0; i < size; i++)
     {
@@ -172,11 +173,13 @@ void C2048::toLeft()
             // if there is some modification, dont iterate over it again
             if (modify(&v[i][j - 1], &v[i][j]) == 1 && j != 1)
             {
+                status = true;
                 j--;
             }
         }
     }
     moveLeft();
+    return status;
 }
 
 void C2048::moveRight()
@@ -201,8 +204,9 @@ void C2048::moveRight()
         }
     }
 }
-void C2048::toRight()
+bool C2048::toRight()
 {
+    bool status = false;
     moveRight();
     for (size_t i = 0; i < size; i++)
     {
@@ -210,11 +214,13 @@ void C2048::toRight()
         {
             if (modify(&v[i][j], &v[i][j - 1]) == 1 && j != size - 1)
             {
+                status = true;
                 j++;
             }
         }
     }
     moveRight();
+    return status;
 }
 
 void C2048::moveUp()
@@ -240,17 +246,22 @@ void C2048::moveUp()
     }
 }
 
-void C2048::toUp()
+bool C2048::toUp()
 {
+    bool status = false;
     moveUp();
     for (size_t i = size - 1; i > 0; i--)
     {
         for (size_t j = 0; j < size; j++)
         {
-            modify(&v[i -1][j], &v[i][j]);
+            if (modify(&v[i - 1][j], &v[i][j]) == 1)
+            {
+                status = true;
+            }
         }
     }
     moveUp();
+    return status;
 }
 
 void C2048::moveDown()
@@ -275,15 +286,20 @@ void C2048::moveDown()
         }
     }
 }
-void C2048::toDown()
+bool C2048::toDown()
 {
+    bool status = false;
     moveDown();
     for (size_t i = 1; i < size; i++)
     {
         for (size_t j = 0; j < size; j++)
         {
-            modify(&v[i][j], &v[i - 1][j]);
+            if (modify(&v[i][j], &v[i - 1][j]) == 1)
+            {
+                status = true;
+            }
         }
     }
     moveDown();
+    return status;
 }

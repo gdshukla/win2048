@@ -47,6 +47,7 @@ LRESULT CALLBACK window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 std::vector<block> initBoard(const int block_count, const Render_State &rs)
 {
     std::vector<block> blocks;
+    blocks.reserve(block_count*block_count);
     int border_size_total = BORDER_SIZE * (block_count + 1);
     int block_width = (rs.width - border_size_total - SIDE_GAP) / block_count;   // leave spave on sides
     int block_height = (rs.height - border_size_total - TOP_GAP) / block_count;  // space on top for score
@@ -55,12 +56,11 @@ std::vector<block> initBoard(const int block_count, const Render_State &rs)
     {
         for (int j = 0; j < block_count; j++)
         {
-            block b;
             int bx = (j + 1)*BORDER_SIZE + j * block_width + SIDE_GAP/2;
             int by = (i + 1)*BORDER_SIZE + i * block_height + TOP_GAP;
             int ID = j * block_count + i;
-            b.set(block_width, block_height, bx, by, ID, &rs);
-            blocks.push_back(b);
+            //block b(block_width, block_height, bx, by, ID, &rs);
+            blocks.emplace_back(block_width, block_height, bx, by, ID, &rs);
         }
     }
     return blocks;
@@ -73,6 +73,14 @@ void setBlockValues(std::vector<block> &blocks, const C2048 &board, const HDC hd
         blocks[i].setValue(value);
     }
 }
+void clearBackGround(RECT &rec, const HDC hdc)
+{
+    // fill black background
+    HBRUSH hBrush = CreateSolidBrush(RGB(0, 0, 20));
+    FillRect(hdc, &rec, hBrush);
+    DeleteObject(hBrush);
+}
+
 void drawScore(int score, const Render_State &rs, const HDC hdc)
 {
     int fsize = FONT_SIZE;
@@ -81,11 +89,12 @@ void drawScore(int score, const Render_State &rs, const HDC hdc)
     SetTextColor(hdc, RGB(0xff, 0xff, 0xff));
     SetBkMode(hdc, TRANSPARENT);
     RECT rec;
-    SetRect(&rec, 0, 0, rs.width, TOP_GAP);
+    SetRect(&rec, SIDE_GAP/2, 0, rs.width, TOP_GAP);
+    clearBackGround(rec, hdc);
 
     wchar_t buffer[32];
     wsprintfW(buffer, L"Score: %d", score);
-    DrawText(hdc, buffer, lstrlenW(buffer), &rec, DT_SINGLELINE | DT_CENTER | DT_VCENTER);
+    DrawText(hdc, buffer, lstrlenW(buffer), &rec, DT_SINGLELINE | /*DT_CENTER |*/ DT_VCENTER);
 
     DeleteObject(SelectObject(hdc, hTmp));
 
@@ -100,6 +109,7 @@ void drawWarning(const std::wstring text, const Render_State &rs, const HDC hdc)
     SetBkMode(hdc, TRANSPARENT);
     RECT rec;
     SetRect(&rec, rs.width/2, 0, rs.width, TOP_GAP);
+    clearBackGround(rec, hdc);
 
     wchar_t buffer[64];
     wsprintfW(buffer, L"%s", text.c_str());
@@ -111,35 +121,44 @@ void drawWarning(const std::wstring text, const Render_State &rs, const HDC hdc)
 
 void drawBlocks(std::vector<block> &blocks, C2048 &board, const Render_State &rs, const HDC hdc)
 {
-    // fill black background
-    RECT rec;
-    SetRect(&rec, 0, 0, rs.width, rs.height+TOP_GAP);
-    HBRUSH hBrush = CreateSolidBrush(RGB(0,0,0));
-    FillRect(hdc, &rec, hBrush);
-    DeleteObject(hBrush);
+
+    static int score = 0;
+    if (score != board.getScore())
+    {
+        score = board.getScore();
+        drawScore(score, rs, hdc);
+    }
 
     if (board.addNewValue() == 0)
     {
-        drawWarning(L"FULL", rs, hdc);
+        //drawWarning(L"FULL", rs, hdc);
     }
     // load board values into corresponding blocks
     setBlockValues(blocks, board, hdc);
 
-    // draw background tiles for all blocks
+    // draw tiles & text on all blocks
     for (auto &b : blocks)
     {
-        b.draw(hdc);
+        b.drawValue(hdc);
     }
-    // draw text on all blocks
-    for (auto &b : blocks)
-    {
-        b.drawText(hdc);
-    }
-    int score = board.getScore();
-    drawScore(score, rs, hdc);
 
 }
 
+bool checkForMoreMoves(const C2048 board)
+{
+    C2048 temp(board);
+    bool n = temp.addNewValue();
+    bool r = temp.toRight();
+    bool l = temp.toLeft();
+    bool u = temp.toUp();
+    bool d = temp.toDown();
+    //r = temp.toRight();
+    if (n == false && r == false && l == false && u == false && d == false)
+    {
+        return false;
+    }
+    return true;
+}
 
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
@@ -181,16 +200,20 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
     C2048 board(size);      // create size X size board
     if (board.addNewValue() == 0)
     {
-        drawWarning(L"FULL", render_state, hdc);
+        //drawWarning(L"FULL", render_state, hdc);
     }
+    RECT rec;
+    SetRect(&rec, 0, 0, render_state.width, render_state.height);
+    clearBackGround(rec, hdc);
+
     std::vector<block> blocks = initBoard(size, render_state);
     for (auto &b : blocks)
     {
-        b.draw(hdc);
+        b.drawTile(hdc);
     }
 
     drawBlocks(blocks, board, render_state, hdc);
-
+    bool rightStatus = true, leftStatus = true, upStatus = true, downStatus = true;
     while (running) {
         // Input
         MSG message;
@@ -201,9 +224,35 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 
             switch (message.message) 
             {
-            case WM_KEYDOWN:
+            case WM_LBUTTONDOWN:
+                leftStatus = board.toLeft();
+                button_pressed = BUTTON_LEFT;
+                break;
+            case WM_RBUTTONDOWN:
+                rightStatus = board.toRight();
+                button_pressed = BUTTON_RIGHT;
+                break;
+            case WM_MBUTTONDOWN:
+                running = false;
+                break;
+            case WM_MOUSEWHEEL:
+            {
+                int delta = (int)message.wParam;
+                if (delta >> 16 > 0)
+                {
+                    upStatus = board.toUp();
+                    button_pressed = BUTTON_UP;
+                }
+                else
+                {
+                    downStatus= board.toDown();
+                    button_pressed = BUTTON_DOWN;
+                }
+            }
                 break;
             case WM_KEYUP:
+                break;
+            case WM_KEYDOWN:
             {
                 UINT32 vk_code = (UINT32)message.wParam;
 
@@ -211,22 +260,22 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
                 {
                 case VK_UP:
                 case 'W':
-                    board.toUp();
+                    upStatus = board.toUp();
                     button_pressed = BUTTON_UP;
                     break;
                 case VK_DOWN:
                 case 'S':
-                    board.toDown();
+                    downStatus = board.toDown();
                     button_pressed = BUTTON_DOWN;
                     break;
                 case VK_LEFT:
                 case 'A':
-                    board.toLeft();
+                    leftStatus = board.toLeft();
                     button_pressed = BUTTON_LEFT;
                     break;
                 case VK_RIGHT:
                 case 'D':
-                    board.toRight();
+                    rightStatus = board.toRight();
                     button_pressed = BUTTON_RIGHT;
                     break;
                 case VK_ESCAPE:
@@ -249,6 +298,12 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
         {
             button_pressed = -1;
             drawBlocks(blocks, board, render_state, hdc);
+            //if (upStatus == 0 && downStatus == 0 && leftStatus == 0 && rightStatus == 0
+            //    && checkForMoreMoves(board) == false)
+            if(checkForMoreMoves(board) == false)
+            {
+                drawWarning(L"No more moves", render_state, hdc);
+            }
         }
 
         LARGE_INTEGER frame_end_time;
