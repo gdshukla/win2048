@@ -4,7 +4,7 @@
 
 class C2048
 {
-    std::vector<std::vector<int>> v;
+    std::vector<std::vector<int>> grid;
     size_t size;
     unsigned long score;
 
@@ -29,6 +29,5 @@ public:
     unsigned long getScore() const;
     int getVal(size_t index) const;
 
-    static int getDigitCount(int value);
 };
 

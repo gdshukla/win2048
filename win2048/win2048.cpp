@@ -5,14 +5,19 @@
 #include "win2048.h"
 #include "C2048.h"
 #include "block.h"
+#include <chrono>
+#include <thread>
+#include <mutex>
 
 static bool running = true;
 
-static Render_State render_state;
 const UINT TOP_GAP = 100;
 const UINT SIDE_GAP = 200;
 const UINT FONT_SIZE = 40;
 const UINT BORDER_SIZE = 4;
+static Render_State render_state;
+std::mutex gmutex;
+
 
 LRESULT CALLBACK window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 {
@@ -89,19 +94,63 @@ void drawScore(int score, const Render_State &rs, const HDC hdc)
     SetTextColor(hdc, RGB(0xff, 0xff, 0xff));
     SetBkMode(hdc, TRANSPARENT);
     RECT rec;
-    SetRect(&rec, SIDE_GAP/2, 0, rs.width, TOP_GAP);
+    SetRect(&rec, SIDE_GAP/2, 0, rs.width/2, TOP_GAP);
     clearBackGround(rec, hdc);
 
     wchar_t buffer[32];
-    wsprintfW(buffer, L"Score: %d", score);
+    static long count = 0;
+    wsprintfW(buffer, L"Score: %d (%d)", score, count++);
+    DrawText(hdc, buffer, lstrlenW(buffer), &rec, DT_SINGLELINE | /*DT_CENTER |*/ DT_VCENTER);
+
+    DeleteObject(SelectObject(hdc, hTmp));
+
+}
+#include "strsafe.h"
+
+void drawTime(const Render_State &rs, const HDC hdc)
+{
+    const std::lock_guard<std::mutex> lock(gmutex);
+    static std::chrono::time_point<std::chrono::system_clock> start = std::chrono::system_clock::now();
+    auto current = std::chrono::system_clock::now();
+    long long diff = (std::chrono::duration_cast<std::chrono::milliseconds>(current - start).count());
+
+    int fsize = FONT_SIZE;
+    HFONT hFont = CreateFont(fsize, 0, 0, 0, FW_BOLD, 0, 0, 0, 0, 0, 0, 2, 0, L"SYSTEM_FIXED_FONT");
+    HFONT hTmp = (HFONT)SelectObject(hdc, hFont);
+    SetTextColor(hdc, RGB(0, 0xff, 0));
+    SetBkMode(hdc, TRANSPARENT);
+    RECT rec;
+    SetRect(&rec, rs.width / 2, 0, rs.width, TOP_GAP);
+    clearBackGround(rec, hdc);
+
+    long long m = diff / (1000 * 60);
+    diff -= m * (1000 * 60);
+
+    long long s = diff / 1000;
+    diff -= s * 1000;
+
+    wchar_t buffer[64];
+    size_t sz = 0;
+    StringCbPrintfEx(buffer, 64, NULL, &sz, STRSAFE_FILL_BEHIND_NULL, L"%ld:%ld.%03d", m, s, diff);
     DrawText(hdc, buffer, lstrlenW(buffer), &rec, DT_SINGLELINE | /*DT_CENTER |*/ DT_VCENTER);
 
     DeleteObject(SelectObject(hdc, hTmp));
 
 }
 
+void drawTimeThread(const Render_State &rs, const HDC hdc)
+{
+    while (running)
+    {
+        drawTime(rs, hdc);
+        Sleep(111);
+    }
+}
+
+
 void drawWarning(const std::wstring text, const Render_State &rs, const HDC hdc)
 {
+    const std::lock_guard<std::mutex> lock(gmutex);
     int fsize = FONT_SIZE;
     HFONT hFont = CreateFont(fsize, 0, 0, 0, FW_BOLD, 0, 0, 0, 0, 0, 0, 2, 0, L"SYSTEM_FIXED_FONT");
     HFONT hTmp = (HFONT)SelectObject(hdc, hFont);
@@ -122,6 +171,7 @@ void drawWarning(const std::wstring text, const Render_State &rs, const HDC hdc)
 void drawBlocks(std::vector<block> &blocks, C2048 &board, const Render_State &rs, const HDC hdc)
 {
 
+    const std::lock_guard<std::mutex> lock(gmutex);
     static int score = 0;
     if (score != board.getScore())
     {
@@ -141,7 +191,7 @@ void drawBlocks(std::vector<block> &blocks, C2048 &board, const Render_State &rs
     {
         b.drawValue(hdc);
     }
-
+    //drawTime(rs, hdc);
 }
 
 bool checkForMoreMoves(const C2048 board)
@@ -159,6 +209,7 @@ bool checkForMoreMoves(const C2048 board)
     }
     return true;
 }
+
 
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
@@ -214,7 +265,10 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 
     drawBlocks(blocks, board, render_state, hdc);
     bool rightStatus = true, leftStatus = true, upStatus = true, downStatus = true;
-    while (running) {
+    std::thread dt(drawTimeThread, render_state, hdc);
+    int pause = 0;
+    while (running) 
+    {
         // Input
         MSG message;
 
@@ -258,6 +312,10 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 
                 switch (vk_code)
                 {
+                case VK_PAUSE:
+                case VK_HOME:
+                    pause = !pause;
+                    break;
                 case VK_UP:
                 case 'W':
                     upStatus = board.toUp();
@@ -293,7 +351,31 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
             }
 
         }
-
+        if (pause != 1)
+        {
+            int val = rand() % 4;
+            int sleep_count = 1;
+            switch (val)
+            {
+            case 0:
+                board.toUp();
+                Sleep(sleep_count);
+                break;
+            case 1:
+                board.toRight();
+                Sleep(sleep_count);
+                break;
+            case 2:
+                board.toDown();
+                Sleep(sleep_count);
+                break;
+            case 3:
+                board.toLeft();
+                Sleep(sleep_count);
+                break;
+            }
+            button_pressed = 1;
+        }
         if (button_pressed != -1)
         {
             button_pressed = -1;
@@ -311,5 +393,5 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
         delta_time = (float)(frame_end_time.QuadPart - frame_begin_time.QuadPart) / performance_frequency;
         frame_begin_time = frame_end_time;
     }
-
+    dt.join();
 }

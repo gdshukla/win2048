@@ -5,8 +5,8 @@
 
 C2048::C2048(size_t _size):size(_size), score(0)
 {
-    v.resize(size);
-    for (auto &i : v)
+    grid.resize(size);
+    for (auto &i : grid)
     {
         i.resize(size);
         for (auto &j : i)
@@ -44,24 +44,13 @@ bool C2048::addNewValue()
         {
             return 0;       // enough tries, failed to find empty spot
         }
-    } while (v[y][x] != defaultValue);
-    if (v[y][x] == defaultValue)
+    } while (grid[y][x] != defaultValue);
+    if (grid[y][x] == defaultValue)
     {
-        v[y][x] = generateValue(1, 2);
+        grid[y][x] = generateValue(1, 2);
     }
 
     return 1;
-}
-
-int C2048::getDigitCount(int value)
-{
-    int digitCount = 1;
-    while (value > 9)
-    {
-        digitCount++;
-        value /= 10;
-    }
-    return digitCount;
 }
 
 std::string C2048::getOutString(int digitCount)
@@ -77,7 +66,7 @@ std::string C2048::getOutString(int digitCount)
 void C2048::print()
 {
     int digitCount = 1;
-    for (auto &i : v)
+    for (auto &i : grid)
     {
         for (auto &j : i)
         {
@@ -89,7 +78,7 @@ void C2048::print()
         }
     }
 
-    for (auto &i : v)
+    for (auto &i : grid)
     {
         std::cout << "| ";
         for (auto &j : i)
@@ -119,7 +108,7 @@ int C2048::getVal(size_t index) const
         return defaultValue;
     size_t y = index / size;
     size_t x = index % size;
-    int value = v[y][x];
+    int value = grid[y][x];
 
     return value;
 }
@@ -146,13 +135,13 @@ void C2048::moveLeft()
         size_t pos = 0;
         for (size_t j = 0; j < size; ++j) 
         {
-            if (v[i][pos] == 0) 
+            if (grid[i][pos] == 0)
             {
                 for (size_t k = pos; k < size-1; ++k) 
                 {
-                    v[i][k] = v[i][k + 1];
+                    grid[i][k] = grid[i][k + 1];
                 }
-                v[i][size - 1] = 0;
+                grid[i][size - 1] = 0;
             }
             else 
             {
@@ -168,13 +157,13 @@ bool C2048::toLeft()
     moveLeft();
     for (size_t i = 0; i < size; i++)
     {
-        for (size_t j = size - 1; j > 0; j--)
+        for (size_t j = 0; j < size -1; j++)
         {
             // if there is some modification, dont iterate over it again
-            if (modify(&v[i][j - 1], &v[i][j]) == 1 && j != 1)
+            if (modify(&grid[i][j], &grid[i][j+1]) == 1 && j < size-2)
             {
                 status = true;
-                j--;
+                //j++;
             }
         }
     }
@@ -189,13 +178,13 @@ void C2048::moveRight()
         size_t pos = size-1;
         for (size_t j = 0; j < size; ++j)
         {
-            if (v[i][pos] == 0) 
+            if (grid[i][pos] == 0)
             {
                 for (size_t k = pos; k > 0; --k)
                 {
-                    v[i][k] = v[i][k - 1];
+                    grid[i][k] = grid[i][k - 1];
                 }
-                v[i][0] = 0;
+                grid[i][0] = 0;
             }
             else 
             {
@@ -210,12 +199,12 @@ bool C2048::toRight()
     moveRight();
     for (size_t i = 0; i < size; i++)
     {
-        for (size_t j = 1; j < size; j++)
+        for (size_t j = size -1; j > 0; j--)
         {
-            if (modify(&v[i][j], &v[i][j - 1]) == 1 && j != size - 1)
+            if (modify(&grid[i][j], &grid[i][j -1]) == 1 && j > 1)
             {
                 status = true;
-                j++;
+                //j--;
             }
         }
     }
@@ -230,13 +219,13 @@ void C2048::moveUp()
         size_t pos = 0;
         for (size_t i = 0; i < size; ++i)
         {
-            if (v[pos][j] == 0) 
+            if (grid[pos][j] == 0)
             {
                 for (size_t k = pos; k < size-1; ++k)
                 {
-                    v[k][j] = v[k + 1][j];
+                    grid[k][j] = grid[k + 1][j];
                 }
-                v[size-1][j] = 0;
+                grid[size-1][j] = 0;
             }
             else 
             {
@@ -250,14 +239,20 @@ bool C2048::toUp()
 {
     bool status = false;
     moveUp();
-    for (size_t i = size - 1; i > 0; i--)
+    int incrementI = 0;
+    for (size_t i = 0; i < size -1; i++)
     {
         for (size_t j = 0; j < size; j++)
         {
-            if (modify(&v[i - 1][j], &v[i][j]) == 1)
+            if (modify(&grid[i][j], &grid[i + 1][j]) == 1 && i != size - 1)
             {
                 status = true;
+                //incrementI = 1;
             }
+        }
+        if (incrementI == 1)
+        {
+            i++; incrementI = 0;
         }
     }
     moveUp();
@@ -271,13 +266,13 @@ void C2048::moveDown()
         size_t pos = size-1;
         for (size_t i = 0; i < size; ++i)
         {
-            if (v[pos][j] == 0) 
+            if (grid[pos][j] == 0)
             {
                 for (size_t k = pos; k > 0; --k)
                 {
-                    v[k][j] = v[k - 1][j];
+                    grid[k][j] = grid[k - 1][j];
                 }
-                v[0][j] = 0;
+                grid[0][j] = 0;
             }
             else 
             {
@@ -290,14 +285,21 @@ bool C2048::toDown()
 {
     bool status = false;
     moveDown();
-    for (size_t i = 1; i < size; i++)
+    int decrementI = 0;
+    for (size_t i = size -1; i > 0; i--)
     {
         for (size_t j = 0; j < size; j++)
         {
-            if (modify(&v[i][j], &v[i - 1][j]) == 1)
+            if (modify(&grid[i][j], &grid[i - 1][j]) == 1 && i > 1)
             {
                 status = true;
+                //decrementI = 1;
             }
+        }
+        if (decrementI == 1)
+        {
+            i--;
+            decrementI = 0;
         }
     }
     moveDown();
