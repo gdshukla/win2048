@@ -2,19 +2,17 @@
 //
 #include <Windows.h>
 #include <vector>
-#include "win2048.h"
-#include "C2048.h"
-#include "block.h"
 #include <chrono>
 #include <thread>
 #include <mutex>
+#include <strsafe.h>
+
+#include "win2048.h"
+#include "C2048.h"
+#include "blocks.h"
 
 static bool running = true;
-
-const UINT TOP_GAP = 100;
-const UINT SIDE_GAP = 200;
-const UINT FONT_SIZE = 40;
-const UINT BORDER_SIZE = 4;
+static bool resize = false;
 static Render_State render_state;
 std::mutex gmutex;
 
@@ -38,7 +36,7 @@ LRESULT CALLBACK window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
         GetClientRect(hwnd, &rect);
         render_state.width = rect.right - rect.left;
         render_state.height = rect.bottom - rect.top;
-
+        resize = true;
     } 
     break;
 
@@ -48,35 +46,6 @@ LRESULT CALLBACK window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
     }
     }
     return result;
-}
-std::vector<block> initBoard(const int block_count, const Render_State &rs)
-{
-    std::vector<block> blocks;
-    blocks.reserve(block_count*block_count);
-    int border_size_total = BORDER_SIZE * (block_count + 1);
-    int block_width = (rs.width - border_size_total - SIDE_GAP) / block_count;   // leave spave on sides
-    int block_height = (rs.height - border_size_total - TOP_GAP) / block_count;  // space on top for score
-
-    for (int i = 0; i < block_count; i++)
-    {
-        for (int j = 0; j < block_count; j++)
-        {
-            int bx = (j + 1)*BORDER_SIZE + j * block_width + SIDE_GAP/2;
-            int by = (i + 1)*BORDER_SIZE + i * block_height + TOP_GAP;
-            int ID = j * block_count + i;
-            //block b(block_width, block_height, bx, by, ID, &rs);
-            blocks.emplace_back(block_width, block_height, bx, by, ID, &rs);
-        }
-    }
-    return blocks;
-}
-void setBlockValues(std::vector<block> &blocks, const C2048 &board, const HDC hdc)
-{
-    for (size_t i = 0; i < blocks.size(); i++)
-    {
-        int value = board.getVal(i);
-        blocks[i].setValue(value);
-    }
 }
 void clearBackGround(RECT &rec, const HDC hdc)
 {
@@ -88,6 +57,7 @@ void clearBackGround(RECT &rec, const HDC hdc)
 
 void drawScore(int score, const Render_State &rs, const HDC hdc)
 {
+    const std::lock_guard<std::mutex> lock(gmutex);
     int fsize = FONT_SIZE;
     HFONT hFont = CreateFont(fsize, 0, 0, 0, FW_BOLD, 0, 0, 0, 0, 0, 0, 2, 0, L"SYSTEM_FIXED_FONT");
     HFONT hTmp = (HFONT)SelectObject(hdc, hFont);
@@ -105,11 +75,9 @@ void drawScore(int score, const Render_State &rs, const HDC hdc)
     DeleteObject(SelectObject(hdc, hTmp));
 
 }
-#include "strsafe.h"
 
 void drawTime(const Render_State &rs, const HDC hdc)
 {
-    const std::lock_guard<std::mutex> lock(gmutex);
     static std::chrono::time_point<std::chrono::system_clock> start = std::chrono::system_clock::now();
     auto current = std::chrono::system_clock::now();
     long long diff = (std::chrono::duration_cast<std::chrono::milliseconds>(current - start).count());
@@ -123,26 +91,30 @@ void drawTime(const Render_State &rs, const HDC hdc)
     SetRect(&rec, rs.width / 2, 0, rs.width, TOP_GAP);
     clearBackGround(rec, hdc);
 
-    long long m = diff / (1000 * 60);
+    int m = static_cast<int>(diff / (1000 * 60));
     diff -= m * (1000 * 60);
 
-    long long s = diff / 1000;
+    int s = static_cast<int>(diff / 1000);
     diff -= s * 1000;
 
     wchar_t buffer[64];
     size_t sz = 0;
-    StringCbPrintfEx(buffer, 64, NULL, &sz, STRSAFE_FILL_BEHIND_NULL, L"%ld:%ld.%03d", m, s, diff);
+    //StringCbPrintfEx(buffer, sizeof(buffer), NULL, &sz, STRSAFE_FILL_BEHIND_NULL, L"%ld:%ld.%03ld", m, s, diff);
+    StringCbPrintf(buffer, sizeof(buffer), L"%d:%d.%03d", m, s, static_cast<int>(diff));
     DrawText(hdc, buffer, lstrlenW(buffer), &rec, DT_SINGLELINE | /*DT_CENTER |*/ DT_VCENTER);
 
     DeleteObject(SelectObject(hdc, hTmp));
 
 }
 
-void drawTimeThread(const Render_State &rs, const HDC hdc)
+void drawTimeThread(const HDC hdc)
 {
     while (running)
     {
-        drawTime(rs, hdc);
+        {
+            const std::lock_guard<std::mutex> lock(gmutex);
+            drawTime(render_state, hdc);
+        }
         Sleep(111);
     }
 }
@@ -168,31 +140,6 @@ void drawWarning(const std::wstring text, const Render_State &rs, const HDC hdc)
 
 }
 
-void drawBlocks(std::vector<block> &blocks, C2048 &board, const Render_State &rs, const HDC hdc)
-{
-
-    const std::lock_guard<std::mutex> lock(gmutex);
-    static int score = 0;
-    if (score != board.getScore())
-    {
-        score = board.getScore();
-        drawScore(score, rs, hdc);
-    }
-
-    if (board.addNewValue() == 0)
-    {
-        //drawWarning(L"FULL", rs, hdc);
-    }
-    // load board values into corresponding blocks
-    setBlockValues(blocks, board, hdc);
-
-    // draw tiles & text on all blocks
-    for (auto &b : blocks)
-    {
-        b.drawValue(hdc);
-    }
-    //drawTime(rs, hdc);
-}
 
 bool checkForMoreMoves(const C2048 board)
 {
@@ -210,10 +157,15 @@ bool checkForMoreMoves(const C2048 board)
     return true;
 }
 
-
-int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
+#define FULL_SCREEN
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
-    ShowCursor(FALSE);
+#ifdef FULL_SCREEN
+    ShowCursor(false);
+#else
+    ShowCursor(true);
+#endif
+
     // Create Window Class
     WNDCLASS window_class = {};
     window_class.style = CS_HREDRAW | CS_VREDRAW;
@@ -223,19 +175,22 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
     // Register Class
     RegisterClass(&window_class);
     // Create Window
-    HWND window = CreateWindow(window_class.lpszClassName, L"2048", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, 1280, 720, 0, 0, hInstance, 0);
+    HWND window = CreateWindow(window_class.lpszClassName, L"2048", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 
+        CW_USEDEFAULT, CW_USEDEFAULT, 1200, 600, 0, 0, hInstance, 0);
     {
+#ifdef FULL_SCREEN
         //Fullscreen
         SetWindowLong(window, GWL_STYLE, GetWindowLong(window, GWL_STYLE) & ~WS_OVERLAPPEDWINDOW);
         MONITORINFO mi = { sizeof(mi) };
         GetMonitorInfo(MonitorFromWindow(window, MONITOR_DEFAULTTOPRIMARY), &mi);
         SetWindowPos(window, HWND_TOP, mi.rcMonitor.left, mi.rcMonitor.top, mi.rcMonitor.right - mi.rcMonitor.left, mi.rcMonitor.bottom - mi.rcMonitor.top, SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+#endif
     }
 
     HDC hdc = GetDC(window);
 
     //Input input = {};
-    int button_pressed = -1;
+    bool update = true;
     float delta_time = 0.016666f;
     LARGE_INTEGER frame_begin_time;
     QueryPerformanceCounter(&frame_begin_time);
@@ -247,7 +202,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
         performance_frequency = (float)perf.QuadPart;
     }
 
-    const size_t size = 8;
+    const size_t size = 10;
     C2048 board(size);      // create size X size board
     if (board.addNewValue() == 0)
     {
@@ -257,22 +212,33 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
     SetRect(&rec, 0, 0, render_state.width, render_state.height);
     clearBackGround(rec, hdc);
 
-    std::vector<block> blocks = initBoard(size, render_state);
-    for (auto &b : blocks)
+    Blocks blocks(size, render_state, hdc/*, gmutex*/);
+    if (board.addNewValue() == 0)
     {
-        b.drawTile(hdc);
+        //drawWarning(L"FULL", rs, hdc);
+    }
+    int score = 0;
+    if (score != board.getScore())
+    {
+        score = board.getScore();
+        drawScore(score, render_state, hdc);
     }
 
-    drawBlocks(blocks, board, render_state, hdc);
+    blocks.drawBlocks(board);
+
     bool rightStatus = true, leftStatus = true, upStatus = true, downStatus = true;
-    std::thread dt(drawTimeThread, render_state, hdc);
-    int pause = 0;
+    std::thread dt(drawTimeThread, hdc);
+    int pause = 1;
     while (running) 
     {
+        //if (score != board.getScore())
+        //{
+        //    score = board.getScore();
+        //    drawScore(score, render_state, hdc);
+        //}
+
         // Input
         MSG message;
-
-
         while (PeekMessage(&message, window, 0, 0, PM_REMOVE)) 
         {
 
@@ -280,11 +246,11 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
             {
             case WM_LBUTTONDOWN:
                 leftStatus = board.toLeft();
-                button_pressed = BUTTON_LEFT;
+                update = true;
                 break;
             case WM_RBUTTONDOWN:
                 rightStatus = board.toRight();
-                button_pressed = BUTTON_RIGHT;
+                update = true;
                 break;
             case WM_MBUTTONDOWN:
                 running = false;
@@ -295,12 +261,12 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
                 if (delta >> 16 > 0)
                 {
                     upStatus = board.toUp();
-                    button_pressed = BUTTON_UP;
+                    update = true;
                 }
                 else
                 {
                     downStatus= board.toDown();
-                    button_pressed = BUTTON_DOWN;
+                    update = true;
                 }
             }
                 break;
@@ -319,22 +285,22 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
                 case VK_UP:
                 case 'W':
                     upStatus = board.toUp();
-                    button_pressed = BUTTON_UP;
+                    update = true;
                     break;
                 case VK_DOWN:
                 case 'S':
                     downStatus = board.toDown();
-                    button_pressed = BUTTON_DOWN;
+                    update = true;
                     break;
                 case VK_LEFT:
                 case 'A':
                     leftStatus = board.toLeft();
-                    button_pressed = BUTTON_LEFT;
+                    update = true;
                     break;
                 case VK_RIGHT:
                 case 'D':
                     rightStatus = board.toRight();
-                    button_pressed = BUTTON_RIGHT;
+                    update = true;
                     break;
                 case VK_ESCAPE:
                 case 'Q':
@@ -351,6 +317,23 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
             }
 
         }
+
+        // in case window size changes, recalculate size and coorinates of blocks and resize the screen
+#ifndef FULL_SCREEN
+        if (resize == true)
+        {
+            const std::lock_guard<std::mutex> lock(gmutex);
+            RECT rec;
+            SetRect(&rec, 0, 0, render_state.width, render_state.height);
+            clearBackGround(rec, hdc);
+            Blocks b(size, render_state, hdc/*, gmutex*/);
+            blocks = b;
+            //blocks.setupBlocks(size, render_state);
+            //blocks = initBoard(size, render_state);
+            resize = false;
+            update = true;
+        }
+#endif
         if (pause != 1)
         {
             int val = rand() % 4;
@@ -359,39 +342,44 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
             {
             case 0:
                 board.toUp();
-                Sleep(sleep_count);
+                //Sleep(sleep_count);
                 break;
             case 1:
                 board.toRight();
-                Sleep(sleep_count);
+                //Sleep(sleep_count);
                 break;
             case 2:
                 board.toDown();
-                Sleep(sleep_count);
+                //Sleep(sleep_count);
                 break;
             case 3:
                 board.toLeft();
-                Sleep(sleep_count);
+                //Sleep(sleep_count);
                 break;
             }
-            button_pressed = 1;
+            update = true;
         }
-        if (button_pressed != -1)
+        if (update == true)
         {
-            button_pressed = -1;
-            drawBlocks(blocks, board, render_state, hdc);
-            //if (upStatus == 0 && downStatus == 0 && leftStatus == 0 && rightStatus == 0
-            //    && checkForMoreMoves(board) == false)
+            update = false;
+            drawScore(board.getScore(), render_state, hdc);
+
+            const std::lock_guard<std::mutex> lock(gmutex);
+            blocks.drawBlocks(board);
             if(checkForMoreMoves(board) == false)
             {
                 drawWarning(L"No more moves", render_state, hdc);
             }
+            board.addNewValue();
+            //board.addNewValue();
+
         }
 
-        LARGE_INTEGER frame_end_time;
-        QueryPerformanceCounter(&frame_end_time);
-        delta_time = (float)(frame_end_time.QuadPart - frame_begin_time.QuadPart) / performance_frequency;
-        frame_begin_time = frame_end_time;
+        //LARGE_INTEGER frame_end_time;
+        //QueryPerformanceCounter(&frame_end_time);
+        //delta_time = (float)(frame_end_time.QuadPart - frame_begin_time.QuadPart) / performance_frequency;
+        //frame_begin_time = frame_end_time;
     }
     dt.join();
 }
+

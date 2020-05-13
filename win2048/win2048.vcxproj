@@ -152,12 +152,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="block.cpp" />
+    <ClCompile Include="blocks.cpp" />
     <ClCompile Include="C2048.cpp" />
     <ClCompile Include="utility.cpp" />
     <ClCompile Include="win2048.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="block.h" />
+    <ClInclude Include="blocks.h" />
     <ClInclude Include="C2048.h" />
     <ClInclude Include="win2048.h" />
     <ClInclude Include="utility.h" />
